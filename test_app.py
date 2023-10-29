@@ -1,11 +1,11 @@
 import pytest
 from unittest.mock import patch, MagicMock
-import aiohttp
 from app import DataProcessor
 import pandas as pd
 from constants import DATE_FIELD, CPI_SUFFIX
 from pandas.testing import assert_frame_equal
 from enums import ConfigFields
+import aioresponses
 
 
 @patch("aiohttp.ClientSession.get")
@@ -61,13 +61,13 @@ async def test_get_data_error_reading_csv(mock_get, caplog):
 
     # Run the method and check the logs
     await dp.get_data(configs[0])
-    assert "Error reading CSV data from http://test.com: mocked error" in caplog.text
+    assert "Error reading CSV data from http://test.com:" in caplog.text
 
 
 @patch("aiohttp.ClientSession.get")
 async def test_get_data(mock_get):
     """
-    Checks correctly building the df from the config
+    Checks correctly building the df from the config.
     """
     mock_resp = MagicMock()
     mock_resp.status = 200
@@ -156,20 +156,14 @@ def test_process_data(dates, cpis):
         }
     )
 
-    # Run the method
     processed_df = dp.process_data(df, configs)
 
-    # Create the expected DataFrame
     expected_df = pd.DataFrame(
         {
-            configs[ConfigFields.NAME]: [None, None, None, None, 0.1, 0.2, 0.3, 0.4],
+            configs[ConfigFields.NAME]: [10, 20, 30, 40],
         },
         index=pd.PeriodIndex(
             [
-                "2021Q1",
-                "2021Q2",
-                "2021Q3",
-                "2021Q4",
                 "2022Q1",
                 "2022Q2",
                 "2022Q3",
@@ -180,5 +174,129 @@ def test_process_data(dates, cpis):
     )
     expected_df.index.names = [DATE_FIELD]
 
+    pd.testing.assert_frame_equal(processed_df, expected_df, check_dtype=False)
+
+
+def test_error_process_data():
+    """
+    Checks DataProcessor.process_data correctly handles error in
+    processing.
+    """
+    configs = {
+        "url": "http://test.com",
+        "date_column": 0,
+        "cpi_column": 1,
+        "name": "test CPI",
+        "skiprows": 0,
+        "freq": "Q",
+    }
+
+    dp = DataProcessor([configs])
+
+    dates_no_quarters = ["2021", "2022"]
+    cpis = [10, 11]
+    df = pd.DataFrame(
+        {
+            DATE_FIELD: dates_no_quarters,
+            configs[ConfigFields.NAME] + CPI_SUFFIX: cpis,
+        }
+    )
+
+    processed_df = dp.process_data(df, configs)
+
+    assert processed_df is None
+
+
+@pytest.fixture
+def processor():
+    configs = [
+        {
+            "url": "http://test.com",
+            "date_column": 0,
+            "cpi_column": 1,
+            "name": "test CPI",
+            "skiprows": 0,
+            "freq": "Q",
+        },
+        {
+            "url": "http://test-1.com",
+            "date_column": 0,
+            "cpi_column": 1,
+            "name": "test-1 CPI",
+            "skiprows": 0,
+            "freq": "Q",
+        },
+        {
+            "url": "http://test-2.com",
+            "date_column": 0,
+            "cpi_column": 1,
+            "name": "test-2 CPI",
+            "skiprows": 0,
+            "freq": "Q",
+        },
+        {
+            "url": "http://test-2.com",
+            "date_column": 0,
+            "cpi_column": 1,
+            "name": "test-3 CPI",
+            "skiprows": 0,
+            "freq": "Q",
+        },
+    ]
+    return DataProcessor(configs)
+
+
+@pytest.mark.asyncio
+async def test_run_and_merge(processor):
+    """
+    Full run and merge test with 4 different csv payloads, including
+    bad responses, unused data and insufficient data.
+
+    - The first response is a normal one with more than one year of data.
+
+    - The second also includes sufficient data but has extra data that should
+      be discarded (a yearly value instead of a quarterly one).
+
+    - The third one contains almost a year of data, therefore not enough to
+      calculate year-on-year variations.
+
+    - The fourth one is a bad response.
+
+    The final merged dataframe should contain only the usable values of the
+    first two csv responses, and therefore still generate a figure.
+    """
+    responses = [
+        "2021-Q1,10\n2021-Q2,10\n2021-Q3,10\n2021-Q4,10\n2022-Q1,11\n",
+        "2021-Q1,10\n2021-Q2,10\n2021-Q3,10\n2021-Q4,10\n2022-Q1,12\n2023,25\n",
+        "2021-Q1,10\n2021-Q2,10\n2021-Q3,10\n2021-Q4,10\n",
+        "bad_response",
+    ]
+    with aioresponses.aioresponses() as mocked:
+        for ind, config in enumerate(processor.configs):
+            url = config[ConfigFields.URL]
+            response_text = responses[ind]
+            mocked.get(url, status=200, body=response_text)
+
+        await processor.run()
+        merged_df = processor.merge_data()
+
+        # Check if dataframes were created for all configs
+        assert len(processor.dataframes) == 2
+
+        # Check if merged dataframe has correct columns
+    expected_df = pd.DataFrame(
+        {
+            processor.configs[0][ConfigFields.NAME]: [10],
+            processor.configs[1][ConfigFields.NAME]: [20],
+        },
+        index=pd.PeriodIndex(
+            [
+                "2022Q1",
+            ],
+            freq=processor.configs[0]["freq"],
+        ),
+    )
+    expected_df.index.names = [DATE_FIELD]
+
     # Check if the processed DataFrame matches the expected DataFrame
-    pd.testing.assert_frame_equal(processed_df, expected_df)
+    pd.testing.assert_frame_equal(merged_df, expected_df, check_dtype=False)

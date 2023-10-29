@@ -9,10 +9,7 @@ from typing import Dict, Any, Optional
 import aiohttp
 import asyncio
 import logging
-
-
-DATE_FIELD = "date"
-CPI_SUFFIX = "__cpi_"
+from constants import DATE_FIELD, CPI_SUFFIX
 
 
 class DataProcessor:
@@ -78,16 +75,24 @@ class DataProcessor:
                 pd.PeriodIndex(df[DATE_FIELD], freq=config["freq"]), inplace=True
             )
 
-            df[config[ConfigFields.NAME]] = df[
-                config[ConfigFields.NAME] + CPI_SUFFIX
-            ].pct_change(periods=4)
+            df[config[ConfigFields.NAME]] = (
+                df[config[ConfigFields.NAME] + CPI_SUFFIX].pct_change(periods=4) * 100
+            )
 
             df.drop(
                 columns=[c for c in df.columns if c != config[ConfigFields.NAME]],
                 axis=1,
                 inplace=True,
             )
-
+            df.sort_index(inplace=True)
+            df.dropna(inplace=True)
+            if df.empty:
+                self.logger.error(
+                    f"Processing of {config[ConfigFields.NAME]} "
+                    "returned an empty dataframe. Possible reason: "
+                    "CSV only contains CPI(H) data for a year "
+                    "(cannot calculate year-on-year inflation)."
+                )
             return df
 
         except Exception as e:
@@ -101,7 +106,7 @@ class DataProcessor:
         df = await self.get_data(config)
         if df is not None:
             processed_df = self.process_data(df, config)
-            if processed_df is not None:
+            if processed_df is not None and not processed_df.empty:
                 self.dataframes[config[ConfigFields.NAME]] = processed_df
 
     async def run(self) -> None:
