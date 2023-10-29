@@ -12,3 +12,5 @@ class ConfigFields(StrEnum):
     USECOLS = "usecols"
     FREQ = "freq"
     NAME = "name"
+    DATE_COLUMN = "date_column"
+    CPI_COLUMN = "cpi_column"

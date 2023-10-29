@@ -2,19 +2,17 @@
     {
         "url": "https://api.data.abs.gov.au/data/CPI/1.10001.10.50.Q?format=csv",
         "skiprows": 1,
-        "usecols": [6, 7],
-        "date_column": "TIME_PERIOD",
-        "gdp_column": "OBS_VALUE",
         "freq": "Q",
-        "name": "AU CPI"
+        "name": "AU CPI",
+        "date_column":6,
+        "cpi_column":7
     },
     {
         "url": "https://www.ons.gov.uk/generator?format=csv&uri=/economy/inflationandpriceindices/timeseries/l522/mm23",
         "skiprows": 8,
-        "usecols": [0, 1],
-        "date_column": "Time",
-        "gdp_column": "Value",
         "freq": "Q",
-        "name": "UK CPIH"
+        "name": "UK CPIH",
+        "date_column":0,
+        "cpi_column":1
     }
 ]

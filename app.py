@@ -30,12 +30,25 @@ class DataProcessor:
                     )
                     return None
                 try:
+                    # TODO: check date and cpi cols are integers and not the same val
                     content = await response.text()
+                    date_col = config[ConfigFields.DATE_COLUMN]
+                    cpi_col = config[ConfigFields.CPI_COLUMN]
+                    cpi_col_name = config[ConfigFields.NAME] + CPI_SUFFIX
+                    usecols = [
+                        date_col,
+                        cpi_col,
+                    ]
+                    names = (
+                        [DATE_FIELD, cpi_col_name]
+                        if date_col < cpi_col
+                        else [cpi_col_name, DATE_FIELD]
+                    )
                     df = pd.read_csv(
                         io.StringIO(content),
                         skiprows=config[ConfigFields.SKIPROWS],
-                        usecols=config[ConfigFields.USECOLS],
-                        names=[DATE_FIELD, config[ConfigFields.NAME] + CPI_SUFFIX],
+                        usecols=usecols,
+                        names=names,
                     )
                     return df
                 except Exception as e:
