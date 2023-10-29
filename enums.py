@@ -9,7 +9,6 @@ class StrEnum(str, Enum):
 class ConfigFields(StrEnum):
     URL = "url"
     SKIPROWS = "skiprows"
-    USECOLS = "usecols"
     FREQ = "freq"
     NAME = "name"
     DATE_COLUMN = "date_column"
