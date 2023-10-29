@@ -5,9 +5,10 @@ from dash import dcc, html
 import dash
 from enums import ConfigFields
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import aiohttp
 import asyncio
+import logging
 
 
 DATE_FIELD = "date"
@@ -17,17 +18,26 @@ CPI_SUFFIX = "__cpi_"
 class DataProcessor:
     def __init__(self, configs):
         self.configs = configs
-        self.dataframes = {}
+        self.dataframes: Dict[str, pd.DataFrame] = {}
+        self.logger = logging.getLogger(__name__)
+        handler = logging.FileHandler("dataprocessor.log")
+        handler.setLevel(logging.ERROR)
+        formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
 
-    async def get_data(self, config):
+    async def get_data(self, config) -> Optional[pd.DataFrame]:
         connector = aiohttp.TCPConnector(ssl=False)
         async with aiohttp.ClientSession(connector=connector) as session:
             async with session.get(config[ConfigFields.URL]) as response:
                 if response.status != 200:
-                    self.error_message = (
+                    error_msg = (
                         f"Error getting data from "
                         f"{config[ConfigFields.URL]}: {response.status}"
                     )
+                    self.logger.error(error_msg)
                     return None
                 try:
                     # TODO: check date and cpi cols are integers and not the same val
@@ -50,14 +60,16 @@ class DataProcessor:
                         usecols=usecols,
                         names=names,
                     )
+
                     return df
                 except Exception as e:
-                    self.error_message = (
+                    error_msg = (
                         f"Error reading CSV data from {config[ConfigFields.URL]}: {e}"
                     )
+                    self.logger.error(error_msg)
                     return None
 
-    def process_data(self, df, config):
+    def process_data(self, df: pd.DataFrame, config) -> Optional[pd.DataFrame]:
         try:
             df[DATE_FIELD] = df[DATE_FIELD].str.replace(" ", "-")
             df = df[df[DATE_FIELD].str.contains(r"\d{4}-Q\d")]
@@ -79,46 +91,52 @@ class DataProcessor:
             return df
 
         except Exception as e:
-            print(f"Error processing data: {e}")
+            error_msg = (
+                f"Error processing CSV data from {config[ConfigFields.NAME]}: {e}"
+            )
+            self.logger.error(error_msg)
             return None
 
-    async def get_and_process_data(self, config):
+    async def get_and_process_data(self, config) -> None:
         df = await self.get_data(config)
         if df is not None:
             processed_df = self.process_data(df, config)
             if processed_df is not None:
                 self.dataframes[config[ConfigFields.NAME]] = processed_df
 
-    async def run(self):
+    async def run(self) -> None:
         tasks = [self.get_and_process_data(config) for config in self.configs]
 
         await asyncio.gather(*tasks)
 
-    def merge_data(self):
+    def merge_data(self) -> pd.DataFrame:
         merged_df = pd.concat(self.dataframes.values(), join="inner", axis=1)
         merged_df.dropna(inplace=True)
         return merged_df
 
-    async def generate_figure(self):
+    async def generate_figure(self) -> Optional[Dict[str, Any]]:
         await self.run()
-        merged_df = self.merge_data()
-        merged_df.index = merged_df.index.to_timestamp()
-        plot_lines = [
-            go.Scatter(x=merged_df.index, y=merged_df[c], mode="lines", name=c)
-            for c in merged_df.columns
-        ]
-        fig = {
-            "layout": go.Layout(
-                title="Inflation (CPI)",
-                xaxis={"title": "Date"},
-                yaxis={"title": "%"},
-            ),
-            "data": plot_lines,
-        }
-        return fig
+        if self.dataframes:
+            merged_df = self.merge_data()
+            merged_df.index = merged_df.index.to_timestamp()
+            plot_lines = [
+                go.Scatter(x=merged_df.index, y=merged_df[c], mode="lines", name=c)
+                for c in merged_df.columns
+            ]
+            fig = {
+                "layout": go.Layout(
+                    title="Inflation (CPI)",
+                    xaxis={"title": "Date"},
+                    yaxis={"title": "%"},
+                ),
+                "data": plot_lines,
+            }
+            return fig
+        else:
+            return None
 
 
-async def generate_fig():
+async def generate_fig() -> Optional[Dict[str, Any]]:
     with open("configs.json") as f:
         configs: Dict[str, Any] = json.load(f)
     processor = DataProcessor(configs)
@@ -126,7 +144,7 @@ async def generate_fig():
     return fig
 
 
-def app_plot_df(fig):
+def app_plot_df(fig) -> None:
     """
     takes in a df that may be obtained through any of the previous function/methods,
     and produces the plotly and app objects for it
@@ -147,9 +165,13 @@ def app_plot_df(fig):
     app.run_server(debug=True, host="0.0.0.0", port=8080, use_reloader=False)
 
 
-async def main():
+async def main() -> None:
     fig = await generate_fig()
-    app_plot_df(fig)
+    if fig is not None:
+        app_plot_df(fig)
+    else:
+        # app that just displays error message
+        pass
 
 
 if __name__ == "__main__":
