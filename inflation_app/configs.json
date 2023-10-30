@@ -1,4 +1,4 @@
-[
+
     {
         "url": "https://api.data.abs.gov.au/data/CPI/1.10001.10.50.Q?format=csv",
         "skiprows": 1,
@@ -6,13 +6,4 @@
         "name": "AU CPI",
         "date_column":6,
         "cpi_column":7
-    },
-    {
-        "url": "https://www.ons.gov.uk/generator?format=csv&uri=/economy/inflationandpriceindices/timeseries/l522/mm23",
-        "skiprows": 8,
-        "freq": "Q",
-        "name": "UK CPIH",
-        "date_column":0,
-        "cpi_column":1
     }
-]
