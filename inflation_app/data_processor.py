@@ -44,7 +44,6 @@ class DataProcessor:
                     self.logger.error(error_msg)
                     return None
                 try:
-                    # TODO: check date and cpi cols are integers and not the same val
                     content = await response.text()
                     date_col = config.date_column
                     cpi_col = config.cpi_column
