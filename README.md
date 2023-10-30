@@ -4,6 +4,7 @@ This is a python package to create a simple dash app that displays a plot with t
 Beyond that, this package provides an efficient and scalable approach to obtain and process more data, error handling/logging and an editable file for users to set up different data sources. 
 
 # Simple usage for an example dash app (assessment test)
+## pip 
 NOTE: This package has been developed and only tested with Python 3.12.
 
 This package is pip installable. Navigate to the package folder and execute (ideally within a virtual environment):
@@ -16,6 +17,9 @@ To generate the dash app with the requested plot of UK and AU annualised inflati
 python inflation/app.py
 ```
 (replace python with the correct executable if required). It should generate the plot on http://0.0.0.0:8080/ .
+
+## docker
+Running the script run_docker.sh will build a docker image with the app and expose the plot on http://0.0.0.0:8080/
 
 # How it works and features
 
@@ -55,7 +59,7 @@ Pydantic is used to validate the format (see the Config class in config_base_mod
 If none are correctly formatted or result in bad data with nothing to plot, the app will display a message indicating to the user to check the logs.
 
 ## Getting and processing data
-Getting and processing the data is done in the DataProcessor class in data_processor.py. The csv data is obtained asynchronously using aiohttp for improved performance (most probably the first bottleneck for scalability) and stored in a pandas dataframe for each source/url, which is then processed into dataframes containing quarterly annualised inflation values that can be easily merged. 
+Getting and processing the data is done in the DataProcessor class in data_processor.py. Any step or data source that may result in an error is added to the logger, and the getting/processing tries to continue with the rest. The csv data is obtained asynchronously using aiohttp for improved performance (most probably the first bottleneck for scalability) and stored in a pandas dataframe for each source/url, which is then processed into dataframes containing quarterly annualised inflation values that can be easily merged. 
 
 If some data cannot be processed into annualised inflation for reasons such as bad URL response, incorrect config setup (e.g. wrong date or CPI columns), not enough data (e.g. data for less than a year, so no annualised inflation calculated), it is added to the log, and the correctly processed ones are still used. The processed dataframes are merged on the common indices (i.e., overlaps in time), so if the data does not overlap in time, no figure is generated. 
 

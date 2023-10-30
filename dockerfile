@@ -1,11 +1,9 @@
 FROM python:3.12
 
-COPY requirements.txt ./requirements.txt
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir --upgrade -r /requirements.txt
-
-
-
 COPY . ./
+RUN pip install .
 
-CMD ["python","dev.py"]
+
+CMD ["python","inflation_app/app.py"]
+
+EXPOSE 8080
