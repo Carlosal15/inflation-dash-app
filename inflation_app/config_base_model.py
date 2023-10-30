@@ -2,6 +2,10 @@ from pydantic import BaseModel, validator
 
 
 class Config(BaseModel):
+    """
+    This class is used for validating the configs provided for getting
+    and processing inflation data.  
+    """
     url: str
     skiprows: int = 0
     freq: str = "Q"

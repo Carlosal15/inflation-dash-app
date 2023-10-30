@@ -12,6 +12,12 @@ __location__ = os.path.realpath(os.path.join(os.getcwd(), os.path.dirname(__file
 
 
 async def generate_fig() -> Optional[Dict[str, Any]]:
+    """
+    Generates the fig to be used in the dash app layout.
+
+    It may fail to generate a figure, which is handled in the generate_app function
+    to display a message for the user.
+    """
     configs: List[Config] = load_configs("configs.json")
     if configs:
         processor = DataProcessor(configs)
@@ -22,6 +28,11 @@ async def generate_fig() -> Optional[Dict[str, Any]]:
 
 
 def load_configs(json_file: str) -> List[Config]:
+    """
+    Loads the configs in a json file in the same folder and handles error logging
+    if the configs or file are incorrectly formatted. Used for reading the
+    example in configs.json.
+    """
     file_path = os.path.join(__location__, json_file)
     configs: List[Config] = []
     try:
@@ -47,10 +58,12 @@ def load_configs(json_file: str) -> List[Config]:
     return configs
 
 
-def generate_app(fig) -> None:
+def generate_app(fig: Optional[Dict[str, Any]]) -> None:
     """
-    Takes in a df that may be obtained through any of the previous function/methods,
-    and produces the plotly and app objects for it
+    Used to generate the dash app layout for plotting annualised inflation.
+
+    If no figure is passed, the app will display a message instructing the
+    user to check the logs.
     """
 
     app = dash.Dash(__name__)
@@ -59,7 +72,8 @@ def generate_app(fig) -> None:
         layout = html.Div(
             children=[
                 html.H2(
-                    "Could not plot annualised inflation with current config. Please, check the logs."
+                    "Could not plot annualised inflation with current config. "
+                    "Please, check the logs."
                 )
             ]
         )
@@ -68,7 +82,7 @@ def generate_app(fig) -> None:
         layout = html.Div(
             children=[
                 dcc.Graph(
-                    id="example-graph",
+                    id="inflation-graph",
                     figure=fig,
                 ),
             ]
@@ -78,6 +92,7 @@ def generate_app(fig) -> None:
 
 
 async def main() -> None:
+    """Tries to generate the figure from the config and run the dash app."""
     fig = await generate_fig()
     generate_app(fig)
 
