@@ -4,7 +4,7 @@ from app import DataProcessor
 import pandas as pd
 from constants import DATE_FIELD, CPI_SUFFIX
 from pandas.testing import assert_frame_equal
-from enums import ConfigFields
+from config_dataclass import Config
 import aioresponses
 
 
@@ -15,13 +15,15 @@ async def test_get_data_response_not_200(mock_get, caplog):
     when url response is != 200
     """
     configs = [
-        {
-            "url": "http://test.com",
-            "date_column": 1,
-            "cpi_column": 2,
-            "name": "test CPI",
-            "skiprows": 0,
-        }
+        Config(
+            **{
+                "url": "http://test.com",
+                "date_column": 1,
+                "cpi_column": 2,
+                "name": "test CPI",
+                "skiprows": 0,
+            }
+        )
     ]
     data_processor = DataProcessor(configs)
     mock_response = MagicMock()
@@ -49,13 +51,15 @@ async def test_get_data_error_reading_csv(mock_get, caplog):
 
     # Set up the DataProcessor and configs
     configs = [
-        {
-            "url": "http://test.com",
-            "date_column": 1,
-            "cpi_column": 2,
-            "name": "test CPI",
-            "skiprows": 0,
-        }
+        Config(
+            **{
+                "url": "http://test.com",
+                "date_column": 1,
+                "cpi_column": 2,
+                "name": "test CPI",
+                "skiprows": 0,
+            }
+        )
     ]
     dp = DataProcessor(configs)
 
@@ -78,20 +82,22 @@ async def test_get_data(mock_get):
     mock_resp.text.side_effect = mock_text
     mock_get.return_value.__aenter__.return_value = mock_resp
     configs = [
-        {
-            "url": "http://test.com",
-            "date_column": 0,
-            "cpi_column": 1,
-            "name": "test CPI",
-            "skiprows": 0,
-        }
+        Config(
+            **{
+                "url": "http://test.com",
+                "date_column": 0,
+                "cpi_column": 1,
+                "name": "test CPI",
+                "skiprows": 0,
+            }
+        )
     ]
 
     dp = DataProcessor(configs)
     # Run the method and check the logs
     loaded_df = await dp.get_data(configs[0])
 
-    cpi_col_name = configs[0][ConfigFields.NAME] + CPI_SUFFIX
+    cpi_col_name = configs[0].name + CPI_SUFFIX
     expected_df = pd.DataFrame(
         {DATE_FIELD: ["2021-Q1", "2021-Q2"], cpi_col_name: [10, 11]}
     )
@@ -138,29 +144,31 @@ def test_process_data(dates, cpis):
     (e.g. "2010-Q1" and "2010 Q1" should be processed equally), as well as
     other dates not corresponding to quarters not being used.
     """
-    configs = {
-        "url": "http://test.com",
-        "date_column": 0,
-        "cpi_column": 1,
-        "name": "test CPI",
-        "skiprows": 0,
-        "freq": "Q",
-    }
+    config = Config(
+        **{
+            "url": "http://test.com",
+            "date_column": 0,
+            "cpi_column": 1,
+            "name": "test CPI",
+            "skiprows": 0,
+            "freq": "Q",
+        }
+    )
 
-    dp = DataProcessor([configs])
+    dp = DataProcessor([config])
 
     df = pd.DataFrame(
         {
             DATE_FIELD: dates,
-            configs[ConfigFields.NAME] + CPI_SUFFIX: cpis,
+            config.name + CPI_SUFFIX: cpis,
         }
     )
 
-    processed_df = dp.process_data(df, configs)
+    processed_df = dp.process_data(df, config)
 
     expected_df = pd.DataFrame(
         {
-            configs[ConfigFields.NAME]: [10, 20, 30, 40],
+            config.name: [10, 20, 30, 40],
         },
         index=pd.PeriodIndex(
             [
@@ -169,7 +177,7 @@ def test_process_data(dates, cpis):
                 "2022Q3",
                 "2022Q4",
             ],
-            freq=configs["freq"],
+            freq=config.freq,
         ),
     )
     expected_df.index.names = [DATE_FIELD]
@@ -182,34 +190,36 @@ def test_error_process_data():
     Checks DataProcessor.process_data correctly handles error in
     processing.
     """
-    configs = {
-        "url": "http://test.com",
-        "date_column": 0,
-        "cpi_column": 1,
-        "name": "test CPI",
-        "skiprows": 0,
-        "freq": "Q",
-    }
+    config = Config(
+        **{
+            "url": "http://test.com",
+            "date_column": 0,
+            "cpi_column": 1,
+            "name": "test CPI",
+            "skiprows": 0,
+            "freq": "Q",
+        }
+    )
 
-    dp = DataProcessor([configs])
+    dp = DataProcessor([config])
 
     dates_no_quarters = ["2021", "2022"]
     cpis = [10, 11]
     df = pd.DataFrame(
         {
             DATE_FIELD: dates_no_quarters,
-            configs[ConfigFields.NAME] + CPI_SUFFIX: cpis,
+            config.name + CPI_SUFFIX: cpis,
         }
     )
 
-    processed_df = dp.process_data(df, configs)
+    processed_df = dp.process_data(df, config)
 
     assert processed_df is None
 
 
 @pytest.fixture
 def processor():
-    configs = [
+    configs_dict = [
         {
             "url": "http://test.com",
             "date_column": 0,
@@ -243,6 +253,7 @@ def processor():
             "freq": "Q",
         },
     ]
+    configs = [Config(**conf_dict) for conf_dict in configs_dict]
     return DataProcessor(configs)
 
 
@@ -273,7 +284,7 @@ async def test_run_and_merge(processor):
     ]
     with aioresponses.aioresponses() as mocked:
         for ind, config in enumerate(processor.configs):
-            url = config[ConfigFields.URL]
+            url = config.url
             response_text = responses[ind]
             mocked.get(url, status=200, body=response_text)
 
@@ -286,14 +297,14 @@ async def test_run_and_merge(processor):
         # Check if merged dataframe has correct columns
     expected_df = pd.DataFrame(
         {
-            processor.configs[0][ConfigFields.NAME]: [10],
-            processor.configs[1][ConfigFields.NAME]: [20],
+            processor.configs[0].name: [10],
+            processor.configs[1].name: [20],
         },
         index=pd.PeriodIndex(
             [
                 "2022Q1",
             ],
-            freq=processor.configs[0]["freq"],
+            freq=processor.configs[0].freq,
         ),
     )
     expected_df.index.names = [DATE_FIELD]
