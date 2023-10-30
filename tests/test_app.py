@@ -124,6 +124,16 @@ dates_space = [
     "2022 Q3",
     "2022 Q4",
 ]
+dates_std_format = [
+    "2021-01-01",
+    "2021-04-01",
+    "2021-07-01",
+    "2021-10-01",
+    "2022-01-01",
+    "2022-04-01",
+    "2022-07-01",
+    "2022-10-01",
+]
 dates_extra = dates_space + ["2010", "2014 NOV"]
 cpis_default = [10, 10, 10, 10, 11, 12, 13, 14]
 cpis_extra = [10, 10, 10, 10, 11, 12, 13, 14, 15, 16]
@@ -134,6 +144,7 @@ cpis_extra = [10, 10, 10, 10, 11, 12, 13, 14, 15, 16]
     [
         (dates_hyphen, cpis_default),
         (dates_space, cpis_default),
+        (dates_std_format, cpis_default),
         (dates_extra, cpis_extra),
     ],
 )
@@ -142,7 +153,8 @@ def test_process_data(dates, cpis):
     Checks correctly processing the dataframe from the config
     (dates, inflation, etc), for the different date formats in the used CSV's
     (e.g. "2010-Q1" and "2010 Q1" should be processed equally), as well as
-    other dates not corresponding to quarters not being used.
+    discarding non-quarterly info, and trying to infer quarter info if no
+    explicit quarters were provided (i.e., containing 'Q').
     """
     config = Config(
         **{
@@ -151,7 +163,6 @@ def test_process_data(dates, cpis):
             "cpi_column": 1,
             "name": "test CPI",
             "skiprows": 0,
-            "freq": "Q",
         }
     )
 
@@ -177,7 +188,7 @@ def test_process_data(dates, cpis):
                 "2022Q3",
                 "2022Q4",
             ],
-            freq=config.freq,
+            freq="Q",
         ),
     )
     expected_df.index.names = [DATE_FIELD]
@@ -197,13 +208,12 @@ def test_error_process_data():
             "cpi_column": 1,
             "name": "test CPI",
             "skiprows": 0,
-            "freq": "Q",
         }
     )
 
     dp = DataProcessor([config])
 
-    dates_no_quarters = ["2021", "2022"]
+    dates_no_quarters = ["some year", "some other year"]
     cpis = [10, 11]
     df = pd.DataFrame(
         {
@@ -226,7 +236,6 @@ def processor():
             "cpi_column": 1,
             "name": "test CPI",
             "skiprows": 0,
-            "freq": "Q",
         },
         {
             "url": "http://test-1.com",
@@ -234,7 +243,6 @@ def processor():
             "cpi_column": 1,
             "name": "test-1 CPI",
             "skiprows": 0,
-            "freq": "Q",
         },
         {
             "url": "http://test-2.com",
@@ -242,7 +250,6 @@ def processor():
             "cpi_column": 1,
             "name": "test-2 CPI",
             "skiprows": 0,
-            "freq": "Q",
         },
         {
             "url": "http://test-2.com",
@@ -250,7 +257,6 @@ def processor():
             "cpi_column": 1,
             "name": "test-3 CPI",
             "skiprows": 0,
-            "freq": "Q",
         },
     ]
     configs = [Config(**conf_dict) for conf_dict in configs_dict]
@@ -304,7 +310,7 @@ async def test_run_and_merge(processor):
             [
                 "2022Q1",
             ],
-            freq=processor.configs[0].freq,
+            freq="Q",
         ),
     )
     expected_df.index.names = [DATE_FIELD]

@@ -11,3 +11,13 @@ date_column
 cpi_column
   Field required [type=missing, input_value={'some': 'incorrect_field'}, input_type=dict]
     For further information visit https://errors.pydantic.dev/2.4/v/missing
+2023-10-30 11:03:42,134 - inflation_app.logger_config - ERROR - Error processing CSV data from test CPI: DataProcessor._format_dates_with_q() takes 1 positional argument but 2 were given
+2023-10-30 11:03:42,189 - inflation_app.logger_config - ERROR - Error processing CSV data from test CPI: DataProcessor._format_dates_with_q() takes 1 positional argument but 2 were given
+2023-10-30 11:03:42,201 - inflation_app.logger_config - ERROR - Error processing CSV data from test CPI: DataProcessor._format_dates_with_q() takes 1 positional argument but 2 were given
+2023-10-30 11:14:08,575 - inflation_app.logger_config - ERROR - Error getting data from http://test.com: 404
+2023-10-30 11:14:08,578 - inflation_app.logger_config - ERROR - Error reading CSV data from http://test.com: object MagicMock can't be used in 'await' expression
+2023-10-30 11:14:08,601 - inflation_app.logger_config - ERROR - Processing of test CPI returned an empty dataframe. Possible reason: CSV only contains CPI(H) data for a year (cannot calculate year-on-year inflation).
+2023-10-30 11:14:08,646 - inflation_app.logger_config - ERROR - Error reading CSV data from http://test-2.com: Too many columns specified: expected 2 and found 1
+2023-10-30 11:14:08,649 - inflation_app.logger_config - ERROR - Processing of test-2 CPI returned an empty dataframe. Possible reason: CSV only contains CPI(H) data for a year (cannot calculate year-on-year inflation).
+2023-10-30 11:15:10,506 - inflation_app.logger_config - ERROR - Processing of test CPI returned an empty dataframe. Possible reason: CSV only contains CPI(H) data for a year (cannot calculate year-on-year inflation).
+2023-10-30 11:16:56,205 - inflation_app.logger_config - ERROR - Error processing CSV data from test CPI: Unknown datetime string format, unable to parse: SOME YEAR

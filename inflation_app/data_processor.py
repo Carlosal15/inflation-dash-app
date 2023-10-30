@@ -77,11 +77,13 @@ class DataProcessor:
         annualised inflation and the correct date information.
 
         self.get_data will return a simple dataframe with a date column and a cpi column.
-        This method:
+        This method is aimed to handle quarterly info:
 
         - first tries to format the dates into quarterly ones (given that, in
         the provided example, one of the csv's only had quarterly info) and discard dates
-        that do not refer to quarterly periods (e.g. yearly, monthly...).
+        that do not refer to quarterly periods (e.g. yearly, monthly...). It can handle
+        dates in the provided formats, as well as quarterly info in other formats that
+        pandas can infer (e.g. '%Y-%m-%d').
 
         - Then converts the quarters to indices of the dataframe, to be able to merge with
         other processed dataframes on matching quarters.
@@ -89,16 +91,17 @@ class DataProcessor:
         - Calculates the annualised inflation rate (the data provided only shows the cpi,
         not the inflation).
 
-        Currently, the handling of dates is somewhat hardcoded (only quarterly info is
-        allowed, and without much flexibility). This could be expanded in several ways
-        depending on the requirements to coerce different date formats, or to process
-        info for periods other than quarters.
+        Currently, the handling of dates is somewhat hardcoded. It checks for any date
+        containing the letter 'Q' as in the example, and if so, tries to use that;
+        otherwise, pandas tries to infer the period and the method assumes that the info
+        is quarterly. It could be expanded in several ways depending on the requirements
+        to coerce different date formats, or to process info for periods other than
+        quarters.
         """
         try:
-            df[DATE_FIELD] = df[DATE_FIELD].str.replace(" ", "-")
-            df = df[df[DATE_FIELD].str.contains(r"\d{4}-Q\d")].copy()
-
-            df.set_index(pd.PeriodIndex(df[DATE_FIELD], freq=config.freq), inplace=True)
+            if df[DATE_FIELD].str.contains("Q").any():
+                df = self._format_dates_with_q(df)
+            df.set_index(pd.PeriodIndex(df[DATE_FIELD], freq="Q"), inplace=True)
 
             df[config.name] = df[config.name + CPI_SUFFIX].pct_change(periods=4) * 100
 
@@ -117,11 +120,20 @@ class DataProcessor:
                     "(cannot calculate year-on-year inflation)."
                 )
             return df
-
         except Exception as e:
             error_msg = f"Error processing CSV data from {config.name}: {e}"
             self.logger.error(error_msg)
             return None
+
+    def _format_dates_with_q(self, df: pd.DataFrame) -> pd.DataFrame:
+        # If date info is mixed such as in the UK data from the example, with years,
+        # quarters and months, remove non-quarter info. Also fills spaces with hyphens
+        # so pandas can handle quarter periods.
+
+        df = df[df[DATE_FIELD].str.contains("Q", na=False)].copy()
+        df[DATE_FIELD] = df[DATE_FIELD].str.replace(" ", "-")
+        df = df[df[DATE_FIELD].str.contains(r"\d{4}-Q\d")].copy()
+        return df
 
     async def get_and_process_data(self, config: Config) -> None:
         """
@@ -146,16 +158,23 @@ class DataProcessor:
         Merges all self.dataframes which are produced after processing and
         organising data by quarters (therefore being able to merge on index).
         """
-        merged_df = pd.concat(self.dataframes.values(), join="inner", axis=1)
-        merged_df.dropna(inplace=True)
-        if merged_df.empty:
+        try:
+            merged_df = pd.concat(self.dataframes.values(), join="inner", axis=1)
+            merged_df.dropna(inplace=True)
+            if merged_df.empty:
+                self.logger.error(
+                    "Could not produce a plot for the provided config data. "
+                    "Possible reason: data from different sources do not "
+                    "overlap in time. "
+                )
+                return None
+            return merged_df
+        except Exception:
             self.logger.error(
-                "Could not produce a plot for the provided config data. "
-                "Possible reason: data from different sources do not "
-                "overlap in time. "
+                "Could not merge data from different sources into common "
+                "quarters. Possible reason: at least one CSV source does "
+                "not contain quarterly information."
             )
-            return None
-        return merged_df
 
     async def generate_figure(self) -> Optional[Dict[str, Any]]:
         """
