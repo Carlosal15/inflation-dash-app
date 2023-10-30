@@ -8,8 +8,8 @@ from typing import Dict, Any, Optional, List
 import aiohttp
 import asyncio
 import logging
-from constants import DATE_FIELD, CPI_SUFFIX
-from config_dataclass import Config
+from inflation_app.constants import DATE_FIELD, CPI_SUFFIX
+from inflation_app.config_dataclass import Config
 
 
 class DataProcessor:
