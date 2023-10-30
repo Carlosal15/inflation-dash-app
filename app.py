@@ -3,17 +3,17 @@ import io
 import plotly.graph_objects as go
 from dash import dcc, html
 import dash
-from enums import ConfigFields
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import aiohttp
 import asyncio
 import logging
 from constants import DATE_FIELD, CPI_SUFFIX
+from config_dataclass import Config
 
 
 class DataProcessor:
-    def __init__(self, configs):
+    def __init__(self, configs: List[Config]):
         self.configs = configs
         self.dataframes: Dict[str, pd.DataFrame] = {}
         self.logger = logging.getLogger(__name__)
@@ -25,23 +25,22 @@ class DataProcessor:
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
 
-    async def get_data(self, config) -> Optional[pd.DataFrame]:
+    async def get_data(self, config: Config) -> Optional[pd.DataFrame]:
         connector = aiohttp.TCPConnector(ssl=False)
         async with aiohttp.ClientSession(connector=connector) as session:
-            async with session.get(config[ConfigFields.URL]) as response:
+            async with session.get(config.url) as response:
                 if response.status != 200:
                     error_msg = (
-                        f"Error getting data from "
-                        f"{config[ConfigFields.URL]}: {response.status}"
+                        f"Error getting data from " f"{config.url}: {response.status}"
                     )
                     self.logger.error(error_msg)
                     return None
                 try:
                     # TODO: check date and cpi cols are integers and not the same val
                     content = await response.text()
-                    date_col = config[ConfigFields.DATE_COLUMN]
-                    cpi_col = config[ConfigFields.CPI_COLUMN]
-                    cpi_col_name = config[ConfigFields.NAME] + CPI_SUFFIX
+                    date_col = config.date_column
+                    cpi_col = config.cpi_column
+                    cpi_col_name = config.name + CPI_SUFFIX
                     usecols = [
                         date_col,
                         cpi_col,
@@ -53,34 +52,28 @@ class DataProcessor:
                     )
                     df = pd.read_csv(
                         io.StringIO(content),
-                        skiprows=config[ConfigFields.SKIPROWS],
+                        skiprows=config.skiprows,
                         usecols=usecols,
                         names=names,
                     )
 
                     return df
                 except Exception as e:
-                    error_msg = (
-                        f"Error reading CSV data from {config[ConfigFields.URL]}: {e}"
-                    )
+                    error_msg = f"Error reading CSV data from {config.url}: {e}"
                     self.logger.error(error_msg)
                     return None
 
-    def process_data(self, df: pd.DataFrame, config) -> Optional[pd.DataFrame]:
+    def process_data(self, df: pd.DataFrame, config: Config) -> Optional[pd.DataFrame]:
         try:
             df[DATE_FIELD] = df[DATE_FIELD].str.replace(" ", "-")
             df = df[df[DATE_FIELD].str.contains(r"\d{4}-Q\d")]
 
-            df.set_index(
-                pd.PeriodIndex(df[DATE_FIELD], freq=config["freq"]), inplace=True
-            )
+            df.set_index(pd.PeriodIndex(df[DATE_FIELD], freq=config.freq), inplace=True)
 
-            df[config[ConfigFields.NAME]] = (
-                df[config[ConfigFields.NAME] + CPI_SUFFIX].pct_change(periods=4) * 100
-            )
+            df[config.name] = df[config.name + CPI_SUFFIX].pct_change(periods=4) * 100
 
             df.drop(
-                columns=[c for c in df.columns if c != config[ConfigFields.NAME]],
+                columns=[c for c in df.columns if c != config.name],
                 axis=1,
                 inplace=True,
             )
@@ -88,7 +81,7 @@ class DataProcessor:
             df.dropna(inplace=True)
             if df.empty:
                 self.logger.error(
-                    f"Processing of {config[ConfigFields.NAME]} "
+                    f"Processing of {config.name} "
                     "returned an empty dataframe. Possible reason: "
                     "CSV only contains CPI(H) data for a year "
                     "(cannot calculate year-on-year inflation)."
@@ -96,18 +89,16 @@ class DataProcessor:
             return df
 
         except Exception as e:
-            error_msg = (
-                f"Error processing CSV data from {config[ConfigFields.NAME]}: {e}"
-            )
+            error_msg = f"Error processing CSV data from {config.name}: {e}"
             self.logger.error(error_msg)
             return None
 
-    async def get_and_process_data(self, config) -> None:
+    async def get_and_process_data(self, config: Config) -> None:
         df = await self.get_data(config)
         if df is not None:
             processed_df = self.process_data(df, config)
             if processed_df is not None and not processed_df.empty:
-                self.dataframes[config[ConfigFields.NAME]] = processed_df
+                self.dataframes[config.name] = processed_df
 
     async def run(self) -> None:
         tasks = [self.get_and_process_data(config) for config in self.configs]
@@ -142,25 +133,39 @@ class DataProcessor:
 
 
 async def generate_fig() -> Optional[Dict[str, Any]]:
-    with open("configs.json") as f:
-        configs: Dict[str, Any] = json.load(f)
-    processor = DataProcessor(configs)
-    fig = await processor.generate_figure()
-    return fig
+    configs: List[Config] = load_configs("configs.json")
+    if configs:
+        processor = DataProcessor(configs)
+        fig = await processor.generate_figure()
+        return fig
+    else:
+        return None
+
+
+def load_configs(json_file: str) -> List[Config]:
+    with open(json_file, "r") as f:
+        data = json.load(f)
+
+    configs: List[Config] = []
+    for item in data:
+        try:
+            config = Config(**item)
+            configs.append(config)
+        except Exception as e:
+            logging.error(f"Error loading config: {e}")
+
+    return configs
 
 
 def app_plot_df(fig) -> None:
     """
-    takes in a df that may be obtained through any of the previous function/methods,
+    Takes in a df that may be obtained through any of the previous function/methods,
     and produces the plotly and app objects for it
     """
-    # Initialize the Dash app
     app = dash.Dash(__name__)
 
-    # Define the layout of the app
     app.layout = html.Div(
         children=[
-            # html.H1(children="Inflation (CPI )"),
             dcc.Graph(
                 id="example-graph",
                 figure=fig,
