@@ -96,7 +96,7 @@ class DataProcessor:
         """
         try:
             df[DATE_FIELD] = df[DATE_FIELD].str.replace(" ", "-")
-            df = df[df[DATE_FIELD].str.contains(r"\d{4}-Q\d")]
+            df = df[df[DATE_FIELD].str.contains(r"\d{4}-Q\d")].copy()
 
             df.set_index(pd.PeriodIndex(df[DATE_FIELD], freq=config.freq), inplace=True)
 
