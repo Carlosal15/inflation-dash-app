@@ -59,3 +59,6 @@ The DataProcessor class also produces the figure layout info for the dash app.
 
 ## Running the app
 app.py uses the figure generated in by DataProcessor for plotting. If no figure layout could be made (e.g. try changing config.json to use fake URLs and running app.py), it will just display a message indicating to check the logs.  
+
+# Tests
+Unit tests can be found in tests/test_app.py
