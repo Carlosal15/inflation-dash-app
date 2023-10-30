@@ -1,3 +1,13 @@
-2023-10-30 02:06:25,342 - inflation_app.logger_config - ERROR - No applicable configs were found in configs.json
-2023-10-30 02:08:17,361 - inflation_app.logger_config - ERROR - Error reading json file: Expecting value: line 18 column 1 (char 468)
-2023-10-30 02:15:39,233 - inflation_app.logger_config - ERROR - Error reading json file: config.json should contain a list of dictionaries, not a single dictionary.
+2023-10-30 04:04:26,990 - inflation_app.logger_config - ERROR - Error loading config: 4 validation errors for Config
+url
+  Field required [type=missing, input_value={'some': 'incorrect_field'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.4/v/missing
+name
+  Field required [type=missing, input_value={'some': 'incorrect_field'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.4/v/missing
+date_column
+  Field required [type=missing, input_value={'some': 'incorrect_field'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.4/v/missing
+cpi_column
+  Field required [type=missing, input_value={'some': 'incorrect_field'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.4/v/missing
