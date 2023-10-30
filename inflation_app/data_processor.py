@@ -88,6 +88,11 @@ class DataProcessor:
 
         - Calculates the annualised inflation rate (the data provided only shows the cpi,
         not the inflation).
+
+        Currently, the handling of dates is somewhat hardcoded (only quarterly info is
+        allowed, and without much flexibility). This could be expanded in several ways
+        depending on the requirements to coerce different date formats, or to process
+        info for periods other than quarters.
         """
         try:
             df[DATE_FIELD] = df[DATE_FIELD].str.replace(" ", "-")
